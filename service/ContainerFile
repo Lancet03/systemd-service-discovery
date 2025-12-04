@@ -1,0 +1,44 @@
+# ===== Stage 1: сборка C++ проекта через CMake + build.sh =====
+FROM registry.fedoraproject.org/fedora:40 AS build
+
+RUN dnf -y install cmake make gcc gcc-c++ && dnf clean all
+
+WORKDIR /src
+
+COPY main.cpp CMakeLists.txt build.sh ./
+
+RUN chmod +x build.sh && ./build.sh Release
+
+# ===== Stage 2: runtime со systemd =====
+FROM registry.fedoraproject.org/fedora:40
+
+# нужно для корректной работы systemd в контейнере
+ENV container=podman
+
+RUN dnf -y install systemd curl hostname && dnf clean all
+
+# cgroup и временные директории для systemd
+VOLUME ["/sys/fs/cgroup", "/run", "/tmp"]
+
+WORKDIR /app
+
+# бинарник, собранный в build-стейдже
+COPY --from=build /src/build/worker /usr/local/bin/worker
+
+# скрипт регистрации
+COPY register-self.sh /usr/local/bin/register.sh
+
+# unit-файл systemd
+COPY heartbeat.service /etc/systemd/system/heartbeat.service
+
+RUN chmod +x /usr/local/bin/worker /usr/local/bin/register.sh && \
+    # "включаем" сервис при загрузке systemd
+    ln -s /etc/systemd/system/heartbeat.service \
+          /etc/systemd/system/multi-user.target.wants/heartbeat.service
+
+
+COPY container-init.sh /usr/local/bin/container-init.sh
+RUN chmod +x /usr/local/bin/container-init.sh
+
+STOPSIGNAL SIGRTMIN+3
+CMD ["/usr/local/bin/container-init.sh"]

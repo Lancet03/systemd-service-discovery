@@ -1,0 +1,22 @@
+[Unit]
+Description=Demo worker that registers in service-discovery
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# Подтягиваем переменные из файла, который сделал container-init.sh
+EnvironmentFile=-/etc/worker.env
+
+# Запускаем нашу C++ программу
+ExecStart=/usr/local/bin/worker
+
+# После старта сервиса — один раз отправляем регистрацию
+ExecStartPost=/usr/local/bin/register.sh
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
