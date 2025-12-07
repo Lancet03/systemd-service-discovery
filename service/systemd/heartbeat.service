@@ -8,7 +8,7 @@ Type=oneshot
 
 EnvironmentFile=-/etc/worker.env
 
-ExecStart=/usr/local/bin/heartbeat.sh
+ExecStart=/usr/local/bin/register.sh
 
 [Install]
 WantedBy=multi-user.target

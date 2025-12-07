@@ -23,12 +23,11 @@ VOLUME ["/sys/fs/cgroup", "/run", "/tmp"]
 WORKDIR /app
 
 # готовый бинарник из первого стейджа
-COPY --from=build /service/build/worker /usr/local/bin/worker
+COPY --from=build /build/worker /usr/local/bin/worker
 
 # скрипты
 COPY scripts/container-init.sh /usr/local/bin/container-init.sh
-COPY scripts/register-self.sh /usr/local/bin/register-self.sh
-COPY scripts/heartbeat.sh /usr/local/bin/heartbeat.sh
+COPY scripts/register.sh /usr/local/bin/register.sh
 
 # unit-файлы systemd
 COPY systemd/worker.service systemd/heartbeat.service systemd/heartbeat.timer \
@@ -36,8 +35,7 @@ COPY systemd/worker.service systemd/heartbeat.service systemd/heartbeat.timer \
 
 RUN chmod +x /usr/local/bin/worker \
              /usr/local/bin/container-init.sh \
-             /usr/local/bin/register-self.sh \
-             /usr/local/bin/heartbeat.sh \
+             /usr/local/bin/register.sh \
     && ln -s /etc/systemd/system/worker.service \
              /etc/systemd/system/multi-user.target.wants/worker.service \
     && ln -s /etc/systemd/system/heartbeat.timer \

@@ -9,7 +9,7 @@ Type=simple
 EnvironmentFile=-/etc/worker.env
 
 ExecStart=/usr/local/bin/worker
-ExecStartPost=/usr/local/bin/register-self.sh
+ExecStartPost=/usr/local/bin/register.sh
 
 Restart=always
 RestartSec=5
