@@ -62,84 +62,84 @@ void gc_loop() {
     }
 }
 
-// Фоновый активный health-check
-void health_check_loop() {
-    while (true) {
-        std::this_thread::sleep_for(HEALTH_INTERVAL);
+// // Фоновый активный health-check
+// void health_check_loop() {
+//     while (true) {
+//         std::this_thread::sleep_for(HEALTH_INTERVAL);
 
-        // Делаем снапшот списка сервисов, чтобы не держать мьютекс во время сетевых вызовов
-        std::vector<Service> snapshot;
-        {
-            std::lock_guard<std::mutex> lock(registry_mutex);
-            snapshot.reserve(registry.size());
-            for (const auto &kv : registry) {
-                snapshot.push_back(kv.second);
-            }
-        }
+//         // Делаем снапшот списка сервисов, чтобы не держать мьютекс во время сетевых вызовов
+//         std::vector<Service> snapshot;
+//         {
+//             std::lock_guard<std::mutex> lock(registry_mutex);
+//             snapshot.reserve(registry.size());
+//             for (const auto &kv : registry) {
+//                 snapshot.push_back(kv.second);
+//             }
+//         }
 
-        for (const auto &svc_snapshot : snapshot) {
-            try {
-                httplib::Client cli(svc_snapshot.ip, svc_snapshot.port);
-                cli.set_read_timeout(5, 0);   // 5 секунд
-                cli.set_connection_timeout(5, 0);
+//         for (const auto &svc_snapshot : snapshot) {
+//             try {
+//                 httplib::Client cli(svc_snapshot.ip, svc_snapshot.port);
+//                 cli.set_read_timeout(5, 0);   // 5 секунд
+//                 cli.set_connection_timeout(5, 0);
 
-                auto res = cli.Get(svc_snapshot.health_path.c_str());
-                bool alive = false;
-                bool ready = false;
+//                 auto res = cli.Get(svc_snapshot.health_path.c_str());
+//                 bool alive = false;
+//                 bool ready = false;
 
-                if (res && res->status == 200) {
-                    alive = true;
+//                 if (res && res->status == 200) {
+//                     alive = true;
 
-                    // Пытаемся прочитать ready из JSON: { "ready": true }
-                    try {
-                        auto j = json::parse(res->body);
-                        if (j.contains("ready") && j["ready"].is_boolean()) {
-                            ready = j["ready"].get<bool>();
-                        } else {
-                            // Если поля нет, считаем, что раз /health 200 — сервис готов
-                            ready = true;
-                        }
-                    } catch (...) {
-                        // Ответ не JSON — считаем ready = true, раз код 200
-                        ready = true;
-                    }
-                } else {
-                    alive = false;
-                    ready = false;
-                }
+//                     // Пытаемся прочитать ready из JSON: { "ready": true }
+//                     try {
+//                         auto j = json::parse(res->body);
+//                         if (j.contains("ready") && j["ready"].is_boolean()) {
+//                             ready = j["ready"].get<bool>();
+//                         } else {
+//                             // Если поля нет, считаем, что раз /health 200 — сервис готов
+//                             ready = true;
+//                         }
+//                     } catch (...) {
+//                         // Ответ не JSON — считаем ready = true, раз код 200
+//                         ready = true;
+//                     }
+//                 } else {
+//                     alive = false;
+//                     ready = false;
+//                 }
 
-                {
-                    std::lock_guard<std::mutex> lock(registry_mutex);
-                    auto it = registry.find(svc_snapshot.id);
-                    if (it != registry.end()) {
-                        it->second.alive             = alive;
-                        it->second.ready             = ready;
-                        it->second.last_health_check = system_clock::now();
+//                 {
+//                     std::lock_guard<std::mutex> lock(registry_mutex);
+//                     auto it = registry.find(svc_snapshot.id);
+//                     if (it != registry.end()) {
+//                         it->second.alive             = alive;
+//                         it->second.ready             = ready;
+//                         it->second.last_health_check = system_clock::now();
 
-                        // Если health-check успешен, обновим last_seen, чтобы не удалить по TTL
-                        if (alive) {
-                            it->second.last_seen = system_clock::now();
-                        }
-                    }
-                }
+//                         // Если health-check успешен, обновим last_seen, чтобы не удалить по TTL
+//                         if (alive) {
+//                             it->second.last_seen = system_clock::now();
+//                         }
+//                     }
+//                 }
 
-                std::cout << "[HC] " << svc_snapshot.id
-                          << " alive=" << (alive ? "true" : "false")
-                          << " ready=" << (ready ? "true" : "false") << "\n";
+//                 std::cout << "[HC] " << svc_snapshot.id
+//                           << " alive=" << (alive ? "true" : "false")
+//                           << " ready=" << (ready ? "true" : "false") << "\n";
 
-            } catch (const std::exception &e) {
-                std::lock_guard<std::mutex> lock(registry_mutex);
-                auto it = registry.find(svc_snapshot.id);
-                if (it != registry.end()) {
-                    it->second.alive             = false;
-                    it->second.ready             = false;
-                    it->second.last_health_check = system_clock::now();
-                }
-                std::cerr << "[HC] exception for " << svc_snapshot.id << ": " << e.what() << "\n";
-            }
-        }
-    }
-}
+//             } catch (const std::exception &e) {
+//                 std::lock_guard<std::mutex> lock(registry_mutex);
+//                 auto it = registry.find(svc_snapshot.id);
+//                 if (it != registry.end()) {
+//                     it->second.alive             = false;
+//                     it->second.ready             = false;
+//                     it->second.last_health_check = system_clock::now();
+//                 }
+//                 std::cerr << "[HC] exception for " << svc_snapshot.id << ": " << e.what() << "\n";
+//             }
+//         }
+//     }
+// }
 
 int main() {
     httplib::Server svr;
@@ -236,7 +236,7 @@ int main() {
     std::thread gc_thread(gc_loop);
     gc_thread.detach();
 
-    std::thread hc_thread(health_check_loop);
+    // std::thread hc_thread(health_check_loop);
     hc_thread.detach();
 
     std::cout << "Discovery service listening on 0.0.0.0:8080\n";
