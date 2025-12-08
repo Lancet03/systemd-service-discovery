@@ -237,7 +237,7 @@ int main() {
     gc_thread.detach();
 
     // std::thread hc_thread(health_check_loop);
-    hc_thread.detach();
+    // hc_thread.detach();
 
     std::cout << "Discovery service listening on 0.0.0.0:8080\n";
     if (!svr.listen("0.0.0.0", 8080)) {
