@@ -1,0 +1,14 @@
+[Unit]
+Description=Send heartbeat for worker to service-discovery
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+
+EnvironmentFile=-/etc/worker.env
+
+ExecStart=/usr/local/bin/register.sh
+
+[Install]
+WantedBy=multi-user.target
