@@ -10,6 +10,8 @@ BUILD_TYPE="${1:-Release}"
 
 echo "[*] Configure CMake (${BUILD_TYPE})..."
 mkdir -p "${BUILD_DIR}"
+cd "${BUILD_DIR}"
+
 cmake -S "${SRC_DIR}" -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
 
 echo "[*] Build..."
