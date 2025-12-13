@@ -1,0 +1,26 @@
+# ===== Stage 1: сборка discovery через CMake =====
+FROM registry.fedoraproject.org/fedora:40 AS build
+
+RUN dnf -y install bash cmake make gcc gcc-c++ && dnf clean all
+
+WORKDIR ./
+
+# Копируем исходники 
+COPY src/ ./src/
+COPY external/ ./external/
+COPY scripts/ ./scripts/
+COPY src/CMakeLists.txt ./
+
+RUN ./scripts/build.sh Release
+
+# ===== Stage 2: лёгкий runtime =====
+FROM registry.fedoraproject.org/fedora-minimal:40
+
+WORKDIR /app
+
+# Копируем бинарник из build-стейджа
+COPY --from=build /build/discovery /usr/local/bin/discovery
+
+EXPOSE 8080
+
+CMD ["/usr/local/bin/discovery"]
