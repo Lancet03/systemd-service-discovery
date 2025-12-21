@@ -4,31 +4,31 @@ workspace {
     user = person "Оператор" "Оператор или терминал ЧПУ, взаимодействующий с системой"
 
     cncSystem = softwareSystem "СЧПУ «Аксиома Контрол»" "Распределённая система ЧПУ с динамическим обнаружением сервисов" {
-
-      discovery = container "Service Discovery" "Сервис для регистрации, мониторинга и получения списка сервисов" "Go, HTTP"
-      worker1   = container "Worker 1" "Ядро ЧПУ, отправляющее heartbeat через systemd" "C++, systemd"
-      worker2   = container "Worker 2" "Дополнительное ядро ЧПУ" "C++, systemd"
-
-      user    -> discovery "Запрашивает список активных сервисов" "HTTP"
-      worker1 -> discovery "Регистрация и heartbeat" "HTTP"
-      worker2 -> discovery "Регистрация и heartbeat" "HTTP"
+      worker = container "Worker (N экземпляров)" "Ядро/воркер ЧПУ. Экземпляров может быть много; каждый периодически регистрируется и отправляет heartbeat через systemd." "C++, systemd"
     }
 
-    etcdSystem = softwareSystem "etcd" "Распределённое key-value хранилище, содержащее состояние сервисов"
+    serviceDiscovery = softwareSystem "Service Discovery" "Централизованный сервис обнаружения: регистрация/heartbeat и выдача списка доступных сервисов" {
+      discoveryApi = container "Discovery API" "Принимает регистрацию/heartbeat и отдает resolve (список активных инстансов)." "Go, HTTP"
+      registryStore = container "Registry Store (etcd)" "Распределённое key-value хранилище состояния реестра (instances, TTL/lease, metadata)." "etcd" {
+        tags "Database"
+      }
+    }
 
-    discovery -> etcdSystem "Запись и чтение данных о worker-сервисах" "etcd client"
+    // Relationships
+    user -> discoveryApi "Запрашивает список активных сервисов" "HTTP"
+    worker -> discoveryApi "Регистрация и heartbeat" "HTTP"
+    discoveryApi -> registryStore "Запись и чтение данных о worker-инстансах (TTL/lease)" "etcd client"
 
-    // Deployment model (обязательно в model)
+    // Deployment model
     deploymentEnvironment "Production" {
 
       deploymentNode "Хост с Podman" "Хост сервисов" "Linux" {
-        containerInstance discovery
-        containerInstance worker1
-        containerInstance worker2
+        containerInstance worker
+        containerInstance discoveryApi
       }
 
       deploymentNode "Отдельный etcd-узел" "Хост хранилища" "Linux" {
-        softwareSystemInstance etcdSystem
+        containerInstance registryStore
       }
     }
   }
@@ -38,19 +38,45 @@ workspace {
     systemContext cncSystem "cnc-context" {
       include *
       autoLayout lr
-      description "Контекстная диаграмма: взаимодействие оператора, discovery и etcd"
+      description "Контекстная диаграмма: взаимодействие оператора, воркеров (N) и Service Discovery"
     }
 
     container cncSystem "cnc-containers" {
       include *
       autoLayout lr
-      description "Контейнерная диаграмма: компоненты системы и их взаимодействие"
+      description "Контейнерная диаграмма CNC-системы: Worker (N экземпляров) и взаимодействие с Service Discovery"
+    }
+
+    container serviceDiscovery "discovery-containers" {
+      include *
+      autoLayout tb
+      description "Контейнерная диаграмма Service Discovery: API (Go) и внутреннее хранилище реестра (etcd)"
     }
 
     deployment cncSystem "Production" "cnc-deployment" {
       include *
       autoLayout lr
-      description "Deployment: Podman-хост с сервисами и отдельный узел etcd"
+      description "Deployment: Podman-хост с worker-ами и Discovery API, отдельный узел etcd"
+    }
+
+    styles {
+      element "Person" {
+        shape Person
+      }
+
+      element "Software System" {
+        background "#0b4f8a"
+        color "#ffffff"
+      }
+
+      element "Container" {
+        background "#1e78c8"
+        color "#ffffff"
+      }
+
+      element "Database" {
+        shape Cylinder
+      }
     }
 
     theme default
