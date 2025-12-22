@@ -3,8 +3,9 @@ workspace {
   model {
     user = person "Оператор" "Оператор или терминал ЧПУ, взаимодействующий с системой"
 
-    cncSystem = softwareSystem "СЧПУ «Аксиома Контрол»" "Распределённая система ЧПУ с динамическим обнаружением сервисов" {
-      worker = container "Worker (N экземпляров)" "Ядро/воркер ЧПУ. Экземпляров может быть много; каждый периодически регистрируется и отправляет heartbeat через systemd." "C++, systemd"
+    cncSystem = softwareSystem "СЧПУ «Аксиома Контрол»" "Ядра СЧПУ с systemd-оболочкой. N экземпляров периодически регистрируются и отправляют heartbeat через systemd." {
+      systemd = container "Systemd" "Обертка над ядром, посылающая запросы /heartbeat" "systemd"
+      core = container "Ядро CЧПУ «Аксиома Контрол»" "" "C++"
     }
 
     serviceDiscovery = softwareSystem "Service Discovery" "Централизованный сервис обнаружения: регистрация/heartbeat и выдача списка доступных сервисов" {
@@ -16,14 +17,15 @@ workspace {
 
     // Relationships
     user -> discoveryApi "Запрашивает список активных сервисов" "HTTP"
-    worker -> discoveryApi "Регистрация и heartbeat" "HTTP"
-    discoveryApi -> registryStore "Запись и чтение данных о worker-инстансах (TTL/lease)" "etcd client"
+    systemd -> discoveryApi "Регистрация и heartbeat" "HTTP"
+    systemd -> core "Запуск ядра"
+    discoveryApi -> registryStore "Запись и чтение данных о systemd-инстансах (TTL/lease)" "etcd client"
 
     // Deployment model
     deploymentEnvironment "Production" {
 
       deploymentNode "Хост с Podman" "Хост сервисов" "Linux" {
-        containerInstance worker
+        containerInstance systemd
         containerInstance discoveryApi
       }
 
@@ -44,7 +46,7 @@ workspace {
     container cncSystem "cnc-containers" {
       include *
       autoLayout lr
-      description "Контейнерная диаграмма CNC-системы: Worker (N экземпляров) и взаимодействие с Service Discovery"
+      description "Контейнерная диаграмма CNC-системы: СЧПУ (N экземпляров) и взаимодействие с Service Discovery"
     }
 
     container serviceDiscovery "discovery-containers" {
@@ -56,7 +58,7 @@ workspace {
     deployment cncSystem "Production" "cnc-deployment" {
       include *
       autoLayout lr
-      description "Deployment: Podman-хост с worker-ами и Discovery API, отдельный узел etcd"
+      description "Deployment: Podman-хост с СЧПУ (N-экземпляров) и Discovery API, отдельный узел etcd"
     }
 
     styles {
